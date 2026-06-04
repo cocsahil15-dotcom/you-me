@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I Love You 💕</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300;1,400&family=DM+Mono:wght@300&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #050008;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: 'DM Mono', monospace;
+}
+
+canvas { display: block; cursor: grab; }
+canvas:active { cursor: grabbing; }
+
+/* Ambient radial behind heart */
+.glow-bg {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -52%);
+  width: 500px; height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200,80,140,0.13) 0%, transparent 70%);
+  pointer-events: none;
+  animation: breathe 4s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,100% { transform: translate(-50%,-52%) scale(1); opacity: 0.8; }
+  50% { transform: translate(-50%,-52%) scale(1.15); opacity: 1; }
+}
+
+/* Message display */
+.message-wrap {
+  position: fixed;
+  bottom: 6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.message-main {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  font-weight: 300;
+  font-style: italic;
+  color: #fff;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-shadow: 0 0 40px rgba(230,100,160,0.8), 0 0 80px rgba(200,80,140,0.4);
+  animation: shimmer 4s ease-in-out infinite;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.message-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 300;
+  color: rgba(220,140,180,0.5);
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  margin-top: 0.6rem;
+  animation: shimmer 4s ease-in-out infinite;
+  animation-delay: 0.5s;
+}
+
+@keyframes shimmer {
+  0%,100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.message-main.fade-out { opacity: 0; transform: translateY(6px); }
+.message-main.fade-in  { opacity: 1; transform: translateY(0); }
+
+/* Controls */
+.controls {
+  position: fixed;
+  bottom: 1.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(220,120,170,0.2);
+  color: rgba(220,140,180,0.7);
+  padding: 0.38rem 1rem;
+  border-radius: 30px;
+  font-size: 0.68rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-family: 'DM Mono', monospace;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: rgba(220,100,160,0.1);
+  border-color: rgba(220,120,170,0.5);
+  color: rgba(240,160,200,1);
+  box-shadow: 0 0 14px rgba(200,80,140,0.15);
+}
+
+.dot-sep {
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: rgba(220,120,170,0.3);
+}
+
+/* Top label */
+.top-label {
+  position: fixed;
+  top: 1.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: rgba(220,140,180,0.3);
+}
+</style>
+</head>
+<body>
+
+<div class="glow-bg"></div>
+<div class="top-label">✦ &nbsp; just for you &nbsp; ✦</div>
+<canvas id="c"></canvas>
+
+<div class="message-wrap">
+  <div class="message-main" id="msg-text">i love you</div>
+  <div class="message-sub" id="msg-sub">always &amp; forever</div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="pauseBtn" onclick="togglePause()">⏸ &nbsp;pause</button>
+  <div class="dot-sep"></div>
+  <button class="btn" onclick="changeColor()">◐ &nbsp;colour</button>
+  <div class="dot-sep"></div>
+  <button class="btn" onclick="changeText()">✦ &nbsp;message</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Colour themes ──────────────────────────────────────────────
+const themes = [
+  { near: [255, 180, 210], far: [130, 40, 80],  glow: 'rgba(220,100,150,' },
+  { near: [200, 170, 255], far: [80,  40, 160], glow: 'rgba(160,120,240,' },
+  { near: [120, 230, 255], far: [20,  90, 130], glow: 'rgba(80,200,240,'  },
+  { near: [255, 200, 120], far: [160, 60,  10], glow: 'rgba(240,160,60,'  },
+  { near: [160, 255, 180], far: [20,  100, 50], glow: 'rgba(100,220,130,' },
+];
+let themeIdx = 0;
+let theme = themes[0];
+
+// ── Messages ───────────────────────────────────────────────────
+const messages = [
+  { main: 'i love you',       sub: 'always & forever'       },
+  { main: 'you are my world', sub: 'every single day'        },
+  { main: 'forever yours',    sub: 'no matter what'          },
+  { main: 'my heart, my home',sub: 'where you are'           },
+  { main: 'tu eres mi todo',  sub: 'siempre y para siempre'  },
+  { main: 'darling',          sub: 'you make everything glow' },
+];
+let msgIdx = 0;
+
+function setMessage(idx) {
+  const el = document.getElementById('msg-text');
+  const sub = document.getElementById('msg-sub');
+  el.classList.add('fade-out');
+  setTimeout(() => {
+    el.textContent = messages[idx].main;
+    sub.textContent = messages[idx].sub;
+    el.classList.remove('fade-out');
+  }, 500);
+}
+
+// ── Heart parametric ───────────────────────────────────────────
+function hx(t) { return 16 * Math.pow(Math.sin(t), 3); }
+function hy(t) { return -(13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t)); }
+
+// ── Build points ───────────────────────────────────────────────
+const LAYERS = 22;
+const PPL    = 110;
+let pts = [];
+
+function buildHeart() {
+  pts = [];
+  const word = messages[msgIdx].main + ' ';
+  for (let l = 0; l < LAYERS; l++) {
+    const depth = (l / (LAYERS-1) - 0.5) * 2;   // -1..1
+    const sc = Math.sqrt(Math.max(0, 1 - depth*depth*0.55)) * 0.88 + 0.12;
+    for (let i = 0; i < PPL; i++) {
+      const t = (i / PPL) * Math.PI * 2;
+      pts.push({
+        ox: hx(t)*sc + (Math.random()-.5)*0.25,
+        oy: hy(t)*sc + (Math.random()-.5)*0.25,
+        oz: depth*5  + (Math.random()-.5)*0.25,
+        ci: Math.floor(Math.random() * word.length),
+        op: 0.55 + Math.random()*0.45,
+        sz: 0.7  + Math.random()*0.65,
+      });
+    }
+  }
+}
+buildHeart();
+
+// ── Rotation ───────────────────────────────────────────────────
+let yAngle   = 0;
+let tilt     = 0;
+let tiltDir  = 1;
+let paused   = false;
+
+// Mouse drag
+let dragging = false, lastX = 0;
+canvas.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; });
+canvas.addEventListener('mousemove', e => { if (dragging) { yAngle += (e.clientX - lastX) * 0.008; lastX = e.clientX; } });
+canvas.addEventListener('mouseup',   () => dragging = false);
+canvas.addEventListener('mouseleave',() => dragging = false);
+
+// Touch drag
+canvas.addEventListener('touchstart', e => { dragging = true; lastX = e.touches[0].clientX; }, { passive:true });
+canvas.addEventListener('touchmove',  e => { if (dragging) { yAngle += (e.touches[0].clientX - lastX)*0.008; lastX = e.touches[0].clientX; } }, { passive:true });
+canvas.addEventListener('touchend',   () => dragging = false);
+
+function ry(x,y,z,a){ return { x:x*Math.cos(a)+z*Math.sin(a), y, z:-x*Math.sin(a)+z*Math.cos(a) }; }
+function rx(x,y,z,a){ return { x, y:y*Math.cos(a)-z*Math.sin(a), z:y*Math.sin(a)+z*Math.cos(a) }; }
+
+// ── Lerp colour ────────────────────────────────────────────────
+function lerpColor(d) {
+  const [r1,g1,b1] = theme.near;
+  const [r2,g2,b2] = theme.far;
+  return [
+    Math.round(r2 + (r1-r2)*d),
+    Math.round(g2 + (g1-g2)*d),
+    Math.round(b2 + (b1-b2)*d),
+  ];
+}
+
+// ── Draw ───────────────────────────────────────────────────────
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  const cx = W/2, cy = H/2;
+  const unit = Math.min(W,H) * 0.019;
+
+  if (!dragging) {
+    tilt += 0.002 * tiltDir;
+    if (Math.abs(tilt) > 0.22) tiltDir *= -1;
+  }
+
+  const word = messages[msgIdx].main + '  ';
+
+  const mapped = pts.map(p => {
+    let {x,y,z} = ry(p.ox, p.oy, p.oz, yAngle);
+    ({x,y,z}    = rx(x, y, z, tilt - 0.28));
+    const persp  = 30 / (30 + z);
+    return {
+      sx: cx + x * unit * persp,
+      sy: cy + y * unit * persp,
+      d:  (z + 6) / 12,   // 0..1 depth
+      p, persp, word,
+    };
+  });
+
+  mapped.sort((a,b) => a.d - b.d);
+
+  mapped.forEach(({ sx, sy, d, p, persp }) => {
+    const ch  = word[p.ci % word.length];
+    const fs  = Math.max(8, p.sz * 13 * persp);
+    const alp = (0.15 + d * 0.85) * p.op;
+
+    // glow only on front-facing chars
+    if (d > 0.62) {
+      ctx.shadowColor = theme.glow + '0.9)';
+      ctx.shadowBlur  = 12 * d;
+    } else {
+      ctx.shadowBlur = 0;
+    }
+
+    const [r,g,b] = lerpColor(d);
+    ctx.fillStyle  = `rgba(${r},${g},${b},${alp.toFixed(3)})`;
+    ctx.font       = `300 ${fs.toFixed(1)}px 'DM Mono', monospace`;
+    ctx.fillText(ch, sx, sy);
+  });
+
+  ctx.shadowBlur = 0;
+  if (!dragging) yAngle += 0.005;
+}
+
+function loop() {
+  if (!paused) draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// ── Controls ───────────────────────────────────────────────────
+function togglePause() {
+  paused = !paused;
+  document.getElementById('pauseBtn').textContent = paused ? '▶ \u00a0play' : '⏸ \u00a0pause';
+}
+
+function changeColor() {
+  themeIdx = (themeIdx + 1) % themes.length;
+  theme = themes[themeIdx];
+}
+
+function changeText() {
+  msgIdx = (msgIdx + 1) % messages.length;
+  setMessage(msgIdx);
+  const word = messages[msgIdx].main + ' ';
+  pts.forEach(p => { p.ci = Math.floor(Math.random() * word.length); });
+}
+</script>
+</body>
+</html>
