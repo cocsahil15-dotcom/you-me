@@ -48,7 +48,6 @@ canvas {
   50%      { transform: translate(-50%,-54%) scale(1.18); opacity: 1; }
 }
 
-/* ── top label ── */
 .top-label {
   position: fixed;
   top: max(1.4rem, env(safe-area-inset-top, 1.4rem));
@@ -60,7 +59,27 @@ canvas {
   white-space: nowrap;
 }
 
-/* ── message ── */
+/* names cycling banner */
+.names-banner {
+  position: fixed;
+  top: max(3.2rem, calc(env(safe-area-inset-top, 0px) + 3.2rem));
+  left: 50%; transform: translateX(-50%);
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(1.1rem, 5vw, 1.8rem);
+  font-style: italic;
+  font-weight: 300;
+  color: rgba(255, 180, 210, 0.9);
+  text-shadow: 0 0 30px rgba(230,100,160,0.7), 0 0 60px rgba(200,80,140,0.3);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.names-banner.fade-out {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-6px);
+}
+
 .message-wrap {
   position: fixed;
   bottom: max(6.5rem, calc(env(safe-area-inset-bottom, 0px) + 6.5rem));
@@ -98,7 +117,6 @@ canvas {
 }
 .message-main.fade-out { opacity: 0; transform: translateY(8px); }
 
-/* ── controls ── */
 .controls {
   position: fixed;
   bottom: max(1.6rem, env(safe-area-inset-bottom, 1.6rem));
@@ -122,8 +140,7 @@ canvas {
   font-family: 'DM Mono', monospace;
   white-space: nowrap;
   -webkit-user-select: none; user-select: none;
-  /* bigger tap target on mobile */
-  min-height: 40px;
+  min-height: 44px;
   display: flex; align-items: center;
 }
 .btn:active {
@@ -139,10 +156,9 @@ canvas {
   flex-shrink: 0;
 }
 
-/* hint for drag */
 .drag-hint {
   position: fixed;
-  top: max(3rem, calc(env(safe-area-inset-top,0px) + 3rem));
+  top: max(5.5rem, calc(env(safe-area-inset-top,0px) + 5.5rem));
   left: 50%; transform: translateX(-50%);
   font-size: 0.58rem;
   letter-spacing: 0.22em;
@@ -163,6 +179,7 @@ canvas {
 
 <div class="glow-bg"></div>
 <div class="top-label">✦ &nbsp; just for you &nbsp; ✦</div>
+<div class="names-banner" id="namesBanner">samia · marium · maisha</div>
 <div class="drag-hint">drag to spin</div>
 <canvas id="c"></canvas>
 
@@ -183,12 +200,22 @@ canvas {
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
 
+// Use devicePixelRatio for crisp rendering on mobile
+let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
 function resize() {
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  ctx.scale(dpr, dpr);
 }
 resize();
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => { dpr = Math.min(window.devicePixelRatio||1,2); resize(); });
+
+/* ── names static ── */
 
 /* ── themes ── */
 const themes = [
@@ -202,12 +229,12 @@ let themeIdx = 0, theme = themes[0];
 
 /* ── messages ── */
 const messages = [
-  { main:'i love you',        sub:'always & forever'        },
-  { main:'you are my world',  sub:'every single day'        },
-  { main:'forever yours',     sub:'no matter what'          },
-  { main:'my heart, my home', sub:'where you are'           },
-  { main:'tu eres mi todo',   sub:'siempre y para siempre'  },
-  { main:'darling',           sub:'you make everything glow'},
+  { main:'i love you',         sub:'always & forever'         },
+  { main:'you are my world',   sub:'every single day'         },
+  { main:'forever yours',      sub:'no matter what'           },
+  { main:'my heart, my home',  sub:'where you are'            },
+  { main:'samia & marium & maisha', sub:'my favourite people' },
+  { main:'darling',            sub:'you make everything glow' },
 ];
 let msgIdx = 0;
 
@@ -227,7 +254,7 @@ const hx = t => 16 * Math.pow(Math.sin(t), 3);
 const hy = t => -(13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t));
 
 /* ── build points ── */
-const LAYERS = 24, PPL = 115;
+const LAYERS = 28, PPL = 130;
 let pts = [];
 
 function buildHeart() {
@@ -251,21 +278,23 @@ function buildHeart() {
 }
 buildHeart();
 
-/* ── rotation state ── */
+/* ── smooth rotation state ── */
 let yAngle = 0, tilt = 0, tiltDir = 1, paused = false;
+let targetY = 0, currentY = 0; // smooth drag interpolation
+let velX = 0;
 
 /* ── drag (mouse + touch) ── */
-let dragging = false, lastX = 0, velX = 0, prevX = 0;
+let dragging = false, lastX = 0;
 
-function startDrag(x) { dragging = true; lastX = prevX = x; velX = 0; }
-function moveDrag(x)  {
+function startDrag(x) { dragging = true; lastX = x; velX = 0; }
+function moveDrag(x) {
   if (!dragging) return;
   const dx = x - lastX;
-  velX = dx;
-  yAngle += dx * 0.009;
-  prevX = lastX; lastX = x;
+  velX = velX * 0.6 + dx * 0.4; // smooth velocity
+  yAngle += dx * 0.008;
+  lastX = x;
 }
-function endDrag()    { dragging = false; }
+function endDrag() { dragging = false; }
 
 canvas.addEventListener('mousedown',  e => startDrag(e.clientX));
 canvas.addEventListener('mousemove',  e => moveDrag(e.clientX));
@@ -286,19 +315,24 @@ function lerpColor(d) {
 }
 
 /* ── render ── */
-function draw() {
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0,0,W,H);
+let lastTime = 0;
+function draw(ts) {
+  const dt = Math.min((ts - lastTime) / 16.67, 3); // delta, capped
+  lastTime = ts;
+
+  const W = window.innerWidth, H = window.innerHeight;
+  ctx.clearRect(0, 0, W, H);
 
   const cx   = W/2, cy = H/2;
-  const unit = Math.min(W,H) * 0.020;
+  const unit = Math.min(W, H) * (W < 480 ? 0.022 : 0.020);
 
   if (!dragging) {
-    tilt += 0.0018 * tiltDir;
+    tilt += 0.0015 * tiltDir * dt;
     if (Math.abs(tilt) > 0.22) tiltDir *= -1;
-    // inertia
-    yAngle += velX * 0.004;
-    velX   *= 0.92;
+    // smooth inertia
+    yAngle += velX * 0.003 * dt;
+    velX   *= Math.pow(0.90, dt);
+    yAngle += 0.004 * dt; // auto-spin
   }
 
   const word   = messages[msgIdx].main + '  ';
@@ -313,7 +347,7 @@ function draw() {
 
   mapped.forEach(({ sx, sy, d, p, persp }) => {
     const ch  = word[p.ci % word.length];
-    const fs  = Math.max(7, p.sz * 13 * persp);
+    const fs  = Math.max(6, p.sz * 13 * persp);
     const alp = (0.12 + d*0.88) * p.op;
 
     ctx.shadowColor = d > 0.58 ? theme.glow + '0.85)' : 'transparent';
@@ -326,14 +360,13 @@ function draw() {
   });
 
   ctx.shadowBlur = 0;
-  if (!dragging) yAngle += 0.005;
 }
 
-function loop() {
-  if (!paused) draw();
+function loop(ts) {
+  if (!paused) draw(ts);
   requestAnimationFrame(loop);
 }
-loop();
+requestAnimationFrame(loop);
 
 /* ── controls ── */
 function togglePause() {
